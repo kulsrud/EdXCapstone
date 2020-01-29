@@ -1,0 +1,106 @@
+---
+title: "EdX Capstone Project"
+author: "Knut Ulsrud"
+date: "1/9/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+## Install Packages and Load Dataset
+This code installs (if necessary) and loads all required packages for the code
+```{r packages}
+
+library(tidyverse)
+library(lubridate)
+library(caret)
+
+
+url<- "https://raw.githubusercontent.com/kulsrud/EdXCapstone/master/"
+file<- "df.csv"
+
+full_path<- paste(url,file, sep="")
+
+raw_file<- read_csv(file = full_path)
+
+
+
+
+```
+
+## Executive Summary
+
+an introduction/overview/executive summary section that describes the dataset and summarizes the goal of the project and key steps that were performed;
+
+```{r exec, echo=FALSE}
+
+plot(pressure)
+
+```
+
+## Methods and Analysis
+
+a methods/analysis section that explains the process and techniques used, such as data cleaning, data exploration and visualization, any insights gained, and your modeling approach;
+
+```{r method, echo=FALSE}
+
+#initial look at dataset
+fraud_df<- raw_file
+head(fraud_df)
+str(fraud_df)
+
+#remove unique identifiers
+fraud_df<- fraud_df[,c("Date", "Amount", "CBK")]
+
+#Split date into weekday, date, and time
+fraud_df<- fraud_df %>% mutate(Weekday = weekdays(as.Date(Date)),
+                               Hour = hour(Date),
+                               Minute = minute(Date),
+                               Second = second(Date),
+                               Date = date(Date))
+
+
+colSums(is.na(fraud_df)) #Confirms that there are no missing values
+
+table(fraud_df$CBK)
+prop.table(table(fraud_df$CBK)) #Tables reveal an imbalanced dataset
+
+#Turn CBK into factor / numeric to allow for correlations
+
+
+#Split into train and test set
+test_index<- createDataPartition(fraud_df$CBK, times = 1, p = 0.8, list = FALSE)
+test_df<- fraud_df[test_index,]
+train_df<- fraud_df[-test_index,]
+
+
+```
+
+## Results
+
+a results section that presents the modeling results and discusses the model performance; and
+
+```{r method, echo=FALSE}
+
+plot(pressure)
+
+```
+
+## Conclusion
+
+a conclusion section that gives a brief summary of the report, its limitations, and future work (the last two are recommended but not necessary).
+
+
+```{r method, echo=FALSE}
+
+plot(pressure)
+
+
+```
+
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
