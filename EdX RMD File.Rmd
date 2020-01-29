@@ -15,9 +15,9 @@ knitr::opts_chunk$set(echo = TRUE)
 This code installs (if necessary) and loads all required packages for the code
 ```{r packages}
 
-library(tidyverse)
-library(lubridate)
-library(caret)
+library(tidyverse) #For basic data operations
+library(lubridate) #For working with date formatted data
+library(caret) #For running ML algorithms
 
 
 url<- "https://raw.githubusercontent.com/kulsrud/EdXCapstone/master/"
