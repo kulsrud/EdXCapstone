@@ -1,0 +1,128 @@
+---
+title: "Movielens RMD Report"
+author: "Knut Ulsrud"
+date: "2/28/2020"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load data
+
+```{r load, echo=FALSE, include = FALSE}
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+
+file<- "input_data.rda"
+load(file)
+
+
+```
+
+#Overview
+
+
+## Goal of the project and key steps that were performed
+This project's goal is to train a movie recommendation system based on Movielens data. This report is produced as a submission to the Data Science: Capstone course provided by HarvardX on the EdX platform. 
+
+## Dataset Description
+The Movielens dataset that was provided through this course has 9,000,055 rows and six columns. Columns contain the following information: 
+1. userId, a unique numeric value assigned to each user u that has provided a rating
+2. movieId, a unique value assigned to each movie m, in numeric format
+3. rating, the rating provided to a specific movie m by a user u, in numeric format
+4. timestamp, the time at which the rating was provided, in numeric format
+5. . title, the name of each movie m, in character format
+6. genres, the genre combinations of each movie, in character format
+
+```{r description, echo=FALSE}
+
+str(edx) 
+
+```
+
+#Mmethods and Analysis 
+
+Process and Techniques used
+
+##Data Cleaning
+A high-level check revealed that there were no missing values in the movielens dataset provided for this assignment. 
+
+```{r cleaning}
+
+colSums((is.na(edx))) #There are no missing values in the dataset
+
+#Transformed datestamp to date format and then to release year and month, and weekday. Transformed rating to integer to facilitate correlation matrix
+ml_df<- edx %>% mutate(release_year = year(as.Date.POSIXct(timestamp)), 
+                       release_month = month(as.Date.POSIXct(timestamp)), 
+                       release_day = wday(as.Date.POSIXct(timestamp)),
+                       rating = as.integer(rating))
+
+ml_df<- ml_df %>% select(-c("movieId", timestamp)) #MovieId can be taken out because it overlaps with title. 
+
+
+```
+
+##Data Exploration and Visualization
+
+```{r exploration_visualization}
+
+cor(ml_df$release_month, edx$rating) #This confirms the assumption that the time of year a movie was released has little impact on rating.
+
+correlations<- data.frame(cor(ml_df[,lapply(ml_df, class)=="integer"])) #Correlates numeric columns
+correlations
+
+ml_df %>% #indicates relationship between year and rating
+  group_by(release_year) %>%
+  summarize(mean_rating = mean(rating)) %>% 
+  ggplot(aes(release_year, mean_rating))+
+  geom_bar(stat="identity")+
+  geom_smooth(method = "auto")
+
+ml_df %>% #Reveals much fewer ratings given to movies in 1995
+  group_by(release_year) %>%
+  summarize(num_ratings = n()) %>% 
+  ggplot(aes(release_year, num_ratings))+
+  geom_bar(stat = "identity")+
+  scale_y_continuous(trans = "log10")
+
+sum(ml_df$release_year==1995)
+ml_df[ml_df$release_year==1995,] #Only 2 movies released in 1995 in dataset
+#Timestamp is not release year, but rating year - fix throughout
+
+```
+
+##Insights gained
+
+
+##Modeling approach
+
+
+#Results
+
+```{r results}
+
+
+```
+
+##Appendix - null findings
+```{r null}
+
+ml_df %>% #No meaningful relationship between release month and avg. rating
+  group_by(release_month) %>%
+  summarize(mean_rating = mean(rating)) %>% 
+  ggplot(aes(release_month, mean_rating))+
+  geom_bar(stat="identity")
+
+ml_df %>% #No meaningful relationship between release month and avg. rating
+  group_by(release_day) %>%
+  summarize(mean_rating = mean(rating)) %>% 
+  ggplot(aes(release_day, mean_rating))+
+  geom_bar(stat="identity")
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.

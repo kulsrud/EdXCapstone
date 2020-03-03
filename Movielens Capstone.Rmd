@@ -15,16 +15,111 @@ This is an R Markdown document. Markdown is a simple formatting syntax for autho
 
 When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
 
-```{r cars}
-summary(cars)
+```{r setup}
+################################
+# Create edx set, validation set
+################################
+
+# Note: this process could take a couple of minutes
+
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+
+# MovieLens 10M dataset:
+ # https://grouplens.org/datasets/movielens/10m/
+ # http://files.grouplens.org/datasets/movielens/ml-10m.zip
+
+dl <- tempfile()
+ download.file("http://files.grouplens.org/datasets/movielens/ml-10m.zip", dl)
+
+ratings <- fread(text = gsub("::", "\t", readLines(unzip(dl, "ml-10M100K/ratings.dat"))),
+                 col.names = c("userId", "movieId", "rating", "timestamp"))
+
+movies <- str_split_fixed(readLines(unzip(dl, "ml-10M100K/movies.dat")), "\\::", 3)
+ colnames(movies) <- c("movieId", "title", "genres")
+ movies <- as.data.frame(movies) %>% mutate(movieId = as.numeric(levels(movieId))[movieId],
+                                            title = as.character(title),
+                                            genres = as.character(genres))
+
+movielens <- left_join(ratings, movies, by = "movieId")
+
+# Validation set will be 10% of MovieLens data
+set.seed(1, sample.kind="Rounding")
+# if using R 3.5 or earlier, use `set.seed(1)` instead
+test_index <- createDataPartition(y = movielens$rating, times = 1, p = 0.1, list = FALSE)
+ edx <- movielens[-test_index,]
+ temp <- movielens[test_index,]
+
+# Make sure userId and movieId in validation set are also in edx set
+validation <- temp %>% 
+      semi_join(edx, by = "movieId") %>%
+      semi_join(edx, by = "userId")
+
+# Add rows removed from validation set back into edx set
+removed <- anti_join(temp, validation)
+ edx <- rbind(edx, removed)
+
+rm(dl, ratings, movies, test_index, temp, movielens, removed)
 ```
 
-## Including Plots
+## Load saved image with data
 
-You can also embed plots, for example:
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r plan, echo=FALSE}
+
+file<- "input_data.rda"
+load(file)
+
+#Review previous course to see how to gradually build the recommendation system. go straight to final (start from the back). 
+
+
+```
+
+## Exploratory analysis on dataset
+
+```{r plan, echo=FALSE}
+
+class(edx)
+
+#Q1: How many rows and columns are there in the edx dataset?
+dim(edx)
+
+#Q2: How many zeros were given as ratings in the edx dataset?
+ How many threes were given as ratings in the edx dataset?
+table(edx$rating) #Table shows no zer-ratings.
+sum(edx$rating==0) #To confirm no zero-ratings
+sum(edx$rating==3) #To confirm no zero-ratings
+
+#Q3: How many different movies are in the edx dataset?
+edx %>% select("title") %>% unique() %>% nrow() #Looking at both MovieId and title to confirm that count is the same
+edx %>% select("movieId") %>% unique() %>% nrow() #Looking at both MovieId and title to confirm that count is the same
+
+#Q4: How many different movies are in the edx dataset?
+edx %>% select("userId") %>% unique() %>% nrow()
+
+#Q5: How many movie ratings are in each of the following genres in the edx dataset? (Every time the genre appears)
+#Drama, Comedy, Thriller, Romance
+
+#Drama: 
+edx %>% select("genres", "rating") %>% filter(str_detect(genres, "Drama")) %>% group_by(genres) %>% nrow()
+#Comedy: 
+edx %>% select("genres", "rating") %>% filter(str_detect(genres, "Comedy")) %>% group_by(genres) %>% nrow()
+#Thriller: 
+edx %>% select("genres", "rating") %>% filter(str_detect(genres, "Thriller")) %>% group_by(genres) %>% nrow()
+#Romance: 
+edx %>% select("genres", "rating") %>% filter(str_detect(genres, "Romance")) %>% group_by(genres) %>% nrow()
+
+
+#Q6: Which movie has the greatest number of ratings?
+edx %>% select("title", "rating") %>% group_by(title) %>% summarize(num_ratings = n()) %>% arrange(-num_ratings)
+
+#Q7: What are the five most given ratings in order from most to least?
+num_rate_table<- edx %>% select(rating) %>% table() %>% as.data.frame() %>% arrange(-Freq)
+
+#Q8: True or False: In general, half star ratings are less common than whole star ratings (e.g., there are fewer ratings of 3.5 than there are ratings of 3 or 4, etc.).
+num_rate_table %>% mutate(dot = str_detect(., "\\.")) %>% group_by(dot) %>% summarize(Freq = sum(Freq))
+
 ```
 
 Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
