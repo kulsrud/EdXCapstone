@@ -1,7 +1,7 @@
 ---
 title: "Movielens RMD Report"
 author: "Knut Ulsrud"
-date: "2/28/2020"
+date: "6/3/2020"
 output: word_document
 ---
 
@@ -9,120 +9,282 @@ output: word_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Load data
+
 
 ```{r load, echo=FALSE, include = FALSE}
 
-if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
-if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
-if(!require(data.table)) install.packages("data.table", repos = "http://cran.us.r-project.org")
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org") #For general data cleaning
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org") #For creating test and train set
+if(!require(gridExtra)) install.packages("gridExtra", repos = "http://cran.us.r-project.org") #For displaying graphs side by side
 
-file<- "input_data.rda"
-load(file)
+file<- "input_data.rda"  #Raw input data previously stored as image
+load(file) #To load raw input data
 
 
 ```
 
-#Overview
-
+# Overview
+This section presents the project's goals and a high-level overview of project data. 
 
 ## Goal of the project and key steps that were performed
-This project's goal is to train a movie recommendation system based on Movielens data. This report is produced as a submission to the Data Science: Capstone course provided by HarvardX on the EdX platform. 
+This project's goal was to train a movie recommendation system based on Movielens data. This report was produced as a submission to the Data Science: Capstone course provided by HarvardX on the EdX platform.
 
 ## Dataset Description
-The Movielens dataset that was provided through this course has 9,000,055 rows and six columns. Columns contain the following information: 
-1. userId, a unique numeric value assigned to each user u that has provided a rating
-2. movieId, a unique value assigned to each movie m, in numeric format
-3. rating, the rating provided to a specific movie m by a user u, in numeric format
-4. timestamp, the time at which the rating was provided, in numeric format
-5. . title, the name of each movie m, in character format
-6. genres, the genre combinations of each movie, in character format
+The Movielens dataset that was provided through this course has 9,000,055 rows and six columns. Columns contain the following information:  
+
+Variable name |Variable Description
+--------------|------------------------------------------------------------------------
+1. userId | A unique numeric value assigned to each user u that has provided a rating
+2. movieId | A unique value assigned to each movie m, in numeric format
+3. rating | The rating provided to a specific movie m by a user u, in numeric format
+4. timestamp | the time at which the rating was provided, in numeric format
+5. title | The name of each movie m, in character format
+6. genres | The genre combinations of each movie, in character format
+
+
+The following table shows the first four rows of the dataset.  
 
 ```{r description, echo=FALSE}
 
-str(edx) 
+knitr::kable(head(edx, 4), "markdown") #To show top 4 rows of sample data
 
 ```
 
-#Mmethods and Analysis 
+# Methods and Analysis
+This section presents steps taken to perform initial analysis on the dataset. It includes the following sections: Data Cleaning, Data Exploration and Visualization, Insights Gained, and Modelling Approach.  
 
-Process and Techniques used
+## Data Cleaning
+A high-level check revealed that there were no missing values in the Movielens dataset provided for this assignment. The data was already presented in a tidy format (one row equals one observation) which means no additional transformation was required to start using the dataset.  
 
-##Data Cleaning
-A high-level check revealed that there were no missing values in the movielens dataset provided for this assignment. 
+```{r cleaning, echo = FALSE, include = FALSE}
 
-```{r cleaning}
-
+head(edx) #The dataset is tidy, with each row representing one rating for movie m by user u. 
 colSums((is.na(edx))) #There are no missing values in the dataset
 
-#Transformed datestamp to date format and then to release year and month, and weekday. Transformed rating to integer to facilitate correlation matrix
-ml_df<- edx %>% mutate(release_year = year(as.Date.POSIXct(timestamp)), 
-                       release_month = month(as.Date.POSIXct(timestamp)), 
-                       release_day = wday(as.Date.POSIXct(timestamp)),
-                       rating = as.integer(rating))
-
-ml_df<- ml_df %>% select(-c("movieId", timestamp)) #MovieId can be taken out because it overlaps with title. 
+#Transformed datestamp to date format and then to rating year and month, and weekday.
+ml_df<- edx %>% mutate(rating_date = (as.Date.POSIXct(timestamp))) %>% #To transform timestamp to data format
+                       select(-timestamp) #removes timestamp column as the information is contained in the rating_date column
 
 
 ```
 
-##Data Exploration and Visualization
+## Data Exploration and Visualization
+It is likely that there is systematic variation between users and their rating, specific movies and their rating, and a movies genre and the movie's rating. This section explores the relationships between these features to understand ones are likely to successfully predict movie ratings.  
 
-```{r exploration_visualization}
+### Movie Effects
+This section explores the possibility of movie effects, and considers the relationship between a movie's rating and the number of ratings it has received. 
 
-cor(ml_df$release_month, edx$rating) #This confirms the assumption that the time of year a movie was released has little impact on rating.
+```{r movie, echo = FALSE}
 
-correlations<- data.frame(cor(ml_df[,lapply(ml_df, class)=="integer"])) #Correlates numeric columns
-correlations
-
-ml_df %>% #indicates relationship between year and rating
-  group_by(release_year) %>%
-  summarize(mean_rating = mean(rating)) %>% 
-  ggplot(aes(release_year, mean_rating))+
-  geom_bar(stat="identity")+
-  geom_smooth(method = "auto")
-
-ml_df %>% #Reveals much fewer ratings given to movies in 1995
-  group_by(release_year) %>%
-  summarize(num_ratings = n()) %>% 
-  ggplot(aes(release_year, num_ratings))+
-  geom_bar(stat = "identity")+
-  scale_y_continuous(trans = "log10")
-
-sum(ml_df$release_year==1995)
-ml_df[ml_df$release_year==1995,] #Only 2 movies released in 1995 in dataset
-#Timestamp is not release year, but rating year - fix throughout
+#look at best movies
+ml_df %>%
+     group_by(title) %>% #To see individual movies by name
+     summarize(rating = mean(rating), n = n()) %>% #to get mean rating per movie and number of ratings
+     select(title, rating, n) %>% #To select columns for displaying in table
+     arrange(desc(rating)) %>% #Arranging observations so we get highest scores first
+     slice(1:10) %>% #To show top 10 best movies
+     knitr::kable() #To present in table
 
 ```
 
-##Insights gained
+
+Displaying movies with the highest average rating we see that all of the top movies have few ratings assigned to them.  
 
 
-##Modeling approach
+```{r movie_worst, echo = FALSE}
+
+#Look at worst movies, repeats code from above but arranges with low scores first
+ml_df %>%
+     group_by(title) %>% #to view observations by movie title
+     summarize(rating = mean(rating), n = n()) %>% #summarizing average rating per movie, and number of ratings
+     select(title, rating, n) %>% #selecting columns for table visual
+     arrange(desc(-rating)) %>% #arranging observations to get lowest scores first
+     slice(1:10) %>%#to show bottom 10 worst movies
+     knitr::kable() #to present in table
+
+```
+
+Displaying movies with the lowest average rating we see that most of the bottom movies have few ratings as well.
+
+The insight we get from displaying the best and worst movies is that we have confirmed the intuition that ratings vary by movie, and that movies with very high or very low scores have few ratings. The latter finding indicates that regularizing can improve the model's predictions. 
+
+### User Effects
+This section explores the possibility of user effects, and considers the relationship between users' average movie ratings and the number of ratings they have provided.
+
+```{r user, echo = FALSE, warnings = FALSE, message = FALSE}
+
+#Look at relationship between number of ratings and different variables
+ml_df %>% 
+  group_by(userId) %>% #want to show mean rating by user
+  summarize(num_rating = n(), rating = mean(rating)) %>% #To show relationship between number of ratings and mean rating
+  ggplot(aes(num_rating, rating))+ #define x and y variables for ggplot
+  geom_point()+ #Create scatterplot
+  labs(title = "Average rating by number of ratings, per user",
+       y = "Average rating",
+       x = "Number of ratings")+
+  geom_smooth(method = "auto", se = TRUE)
+
+```
+  
+The graph shows that some users have submitted more ratings than others. It also shows that users with fewer ratings are likely to have more extreme (higher or lower, with bias towards higher) average ratings. The latter finding indicates that regularizing can improve the model's predictions. 
+
+### Genre Effects
+This section explores the possibility of genre effects.
+
+```{r genre, echo = FALSE}
+
+mu<- mean(ml_df$rating)
+
+#Genre effect - identify genre effect for movie u in genre g. Creating separate dataframe grouped by movies to facilitate data processing
+ml_df_movies<- ml_df %>%
+  group_by(movieId) %>% #group by movieId
+  summarize(genres = genres[1], #all observations of a movie have the same genre, taking the first observation for each movie
+            rating = mean(rating), #averaging ratings for each movie
+            n = n()) #Keep only unique movieIds and retain their genre description
+
+genres<- ml_df_movies %>%
+  mutate(split_genres = str_split(genres, "\\|")) %>% #Separating each movie's different genres
+  unnest(cols = split_genres) %>% #Turning genre obsrvations from list to tidy format
+  group_by(split_genres) %>% #aggregating by genre
+  summarize(genre_rating = sum((rating*n)/sum(n)) - mu, n = sum(n)) #estimating genre effect by subtracting each genres average rating from the dataset mean. 
+
+genres %>%
+  ggplot(aes(reorder(split_genres, genre_rating), genre_rating))+ #assigning x and y variables
+  geom_bar(stat = "identity")+ #to display genre effect value, not count
+  geom_hline(aes(yintercept = mean(genre_rating)))+ #to add averae guideline
+  geom_label(aes(y = mean(genre_rating)+0.05, x = 7), label = "Mean genre effect")+ #to add guideline for mean genre effect
+  coord_flip()+ #to turn graph on its side
+  labs(title = "Genre rating by genre", #adding labels
+       y = "Genre Rating",
+       x = "Genre")
+
+```
+
+The graph shows that different genres systematically deviate from the mean overall mean. While movies are assigned combinations of genres, this graph shows the effect from isolated genres. Aggregate genre effects can be assigned to movie ratings based on the movie's genre combination.  
+
+## Insights gained
+There is systematic variation between movies scores, between genre scores, and between user ratings. These are three variables that we can use to predict movie scores in the validation set. The analysis also shows that movies with few ratings, and users with few ratings, sometimes tends towards more extreme values. This means that regularization will likely improve our modelling results.  
+
+\pagebreak
+
+## Modeling approach
+The model will follow the following formula to predict movie scores.  
+
+$Y_{u,i} = μ + b_i +b_u + ∑k = 1^{K}x_{u,i}β_{k} + ε_{u,i}$, with  $x^{k}_{u,i}=1$ if $g_{u,i}$ is genre $k$  
+
+It will calculate movie effects $b_i$, user effects $b_u$, and genre effects $k$ that summarize genre scores for all genres that apply to a particular movie rating by a user.  
+
+Both movie and user effects are regularized to reduce the contribution from observations with low n. The regularized variables are defined as follow: 
+
+$b_i = sum(rating - μ - ∑k)/(n+λ)$ , and $b_u = sum(rating - μ - b_i - ∑k)/(n+λ)$. This means that $b_i$ captures residuals per movie after first estimating the average rating and the genre effect. $b_u$ captures residuals per user after first estimating the average rating, the genre effect, and movie effects.  
+
+ $λ$ or lambda is the regularization parameter. It was tuned by testing values from 0 to 10 at 0.25 increments optimizing between the estimated movie effect and user effect.  
+
+```{r model_2, echo = FALSE, include = FALSE}
+
+lambda<- 4.9 #Result from tuning (at end of script)
+
+#Calcualte genre effect for individual movies
+genre_rating<- matrix()
+for (k in c(1:nrow(ml_df_movies))){
+      genre_rating[k] <- matrix(sum(str_detect(ml_df_movies$genres[k], genres$split_genres)*genres$genre_rating))
+      }
+
+b_g<- ml_df_movies %>% 
+  cbind(genre_rating) %>%
+  rename(b_g = genre_rating)%>%
+  select(movieId, b_g)
 
 
-#Results
+#Regularized movie effect - identify b_i for each movie ID
+b_i <- ml_df %>%
+          left_join(b_g, by = "movieId") %>% 
+          group_by(movieId) %>%
+          summarize(b_i = sum(rating - mu - b_g)/(n()+lambda))
 
-```{r results}
+
+#Regularized user effect - identify b_u for each user ID
+b_u <- ml_df %>% 
+          left_join(b_i, by="movieId") %>%
+          left_join(b_g, by = "movieId") %>%
+          group_by(userId) %>%
+          summarize(b_u = sum(rating - b_i - b_g - mu)/(n()+lambda))
+  
+
+```
+
+# Results
+A movie recommendation system based on the presented approach produces the following RMSE:  
+
+```{r validate, echo = FALSE}
+
+RMSE <- function(true_ratings, predicted_ratings){
+     sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+
+#Validate results
+predicted_ratings_validation <- 
+validation %>%
+  #mutate(release_year = as.integer(str_sub(title, start = -5, end = -2))) %>%
+  left_join(b_i, by = "movieId") %>%
+  left_join(b_u, by = "userId") %>%
+  left_join(b_g, by = "movieId") %>%
+  mutate(pred = mu + b_g + b_i + b_u) %>%
+  .$pred
+
+validation_set_rmse <- RMSE(predicted_ratings_validation, validation$rating)
+names(validation_set_rmse)<- "Regularized movie and user effects + genre effects: "
+knitr::kable(validation_set_rmse, col.names = NULL)
+
 
 
 ```
 
-##Appendix - null findings
-```{r null}
+Additional exploration could be done on the effects from timing of rating and movie release date. This could potentially yield additional improvements to the model's RMSE. 
 
-ml_df %>% #No meaningful relationship between release month and avg. rating
-  group_by(release_month) %>%
-  summarize(mean_rating = mean(rating)) %>% 
-  ggplot(aes(release_month, mean_rating))+
-  geom_bar(stat="identity")
+```{r tuning, eval = FALSE, echo = FALSE, include = FALSE}
 
-ml_df %>% #No meaningful relationship between release month and avg. rating
-  group_by(release_day) %>%
-  summarize(mean_rating = mean(rating)) %>% 
-  ggplot(aes(release_day, mean_rating))+
-  geom_bar(stat="identity")
+#This code was used for tuning the lambda parameter that is defined in line 186
+test_index <- createDataPartition(y = ml_df$rating, times = 1, #Create index to split in test and training sets
+                                  p = 0.2, list = FALSE)
+train_set <- ml_df[-test_index,] #defining train set
+test_set <- ml_df[test_index,] #defining test set
+test_set <- test_set %>% 
+     semi_join(train_set, by = "movieId") %>% #Ensuring that all movies are present in both train and test set to avoid NA values
+     semi_join(train_set, by = "userId") #Ensuring that all users are present in both train and test set to avoid NA values
+
+
+mu <- mean(train_set$rating) 
+
+#Regularized movie and user effect
+lambdas <- seq(4.5, 5.5, 0.1)
+rmses <- sapply(lambdas, function(l){
+     mu <- mean(train_set$rating)
+     b_i <- train_set %>%
+          left_join(b_g, by="movieId") %>%
+          group_by(movieId) %>%
+          summarize(b_i = sum(rating - mu - b_g)/(n()+l))
+     b_u <- train_set %>% 
+          left_join(b_g, by="movieId") %>%
+          left_join(b_i, by = "movieId") %>% 
+          group_by(userId) %>%
+          summarize(b_u = sum(rating - mu - b_g - b_i)/(n()+l))
+     predicted_ratings <- 
+          test_set %>% 
+          left_join(b_g, by = "movieId") %>%
+          left_join(b_i, by = "movieId") %>%
+          left_join(b_u, by = "userId") %>%
+          mutate(pred = mu + b_i + b_u + b_g) %>%
+          .$pred
+     return(RMSE(predicted_ratings, test_set$rating))
+})
+
+qplot(lambdas, rmses)  
+
+min(rmses)
+lambda <- lambdas[which.min(rmses)]
+lambda
+
 
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
