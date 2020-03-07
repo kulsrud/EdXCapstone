@@ -2,7 +2,7 @@
 title: "Movielens RMD Report"
 author: "Knut Ulsrud"
 date: "6/3/2020"
-output: word_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -178,7 +178,7 @@ Both movie and user effects are regularized to reduce the contribution from obse
 
 $b_i = sum(rating - μ - ∑k)/(n+λ)$ , and $b_u = sum(rating - μ - b_i - ∑k)/(n+λ)$. This means that $b_i$ captures residuals per movie after first estimating the average rating and the genre effect. $b_u$ captures residuals per user after first estimating the average rating, the genre effect, and movie effects.  
 
- $λ$ or lambda is the regularization parameter. It was tuned by testing values from 0 to 10 at 0.25 increments optimizing between the estimated movie effect and user effect.  
+ $λ$ or lambda is the regularization parameter. It was tuned by testing values from 0 to 10 at progressively smaller incremeents (0.1 at the smallest)  optimizing between the estimated movie effect and user effect.  
 
 ```{r model_2, echo = FALSE, include = FALSE}
 
@@ -240,12 +240,13 @@ knitr::kable(validation_set_rmse, col.names = NULL)
 
 ```
 
-Additional exploration could be done on the effects from timing of rating and movie release date. This could potentially yield additional improvements to the model's RMSE. 
+## Conclusions
+Additional exploration could be done on the effects from timing of rating and movie release date. This could potentially yield additional improvements to the model's RMSE. Matrix factorization could also improve scores further. 
 
 ```{r tuning, eval = FALSE, echo = FALSE, include = FALSE}
 
 #This code was used for tuning the lambda parameter that is defined in line 186
-test_index <- createDataPartition(y = ml_df$rating, times = 1, #Create index to split in test and training sets
+test_index <- createDataPartition(y = m#l_df$rating, times = 1, #Create index to split in test and training sets
                                   p = 0.2, list = FALSE)
 train_set <- ml_df[-test_index,] #defining train set
 test_set <- ml_df[test_index,] #defining test set

@@ -15,6 +15,10 @@ knitr::opts_chunk$set(echo = TRUE)
 This code installs (if necessary) and loads all required packages for the code
 ```{r packages}
 
+if(!require(tidyverse)) install.packages("tidyverse", repos = "http://cran.us.r-project.org")
+if(!require(lubridate)) install.packages("lubridate", repos = "http://cran.us.r-project.org")
+if(!require(caret)) install.packages("caret", repos = "http://cran.us.r-project.org")
+
 library(tidyverse) #For basic data operations
 library(lubridate) #For working with date formatted data
 library(caret) #For running ML algorithms
